@@ -1022,6 +1022,7 @@ BASE_REW_SHAPING_PARAMS = {
     "DISH_DISP_DISTANCE_REW": 0,
     "POT_DISTANCE_REW": 0,
     "SOUP_DISTANCE_REW": 0,
+    "ONION_PICKUP_REWARD": 3,
 }
 
 EVENT_TYPES = [
@@ -1442,6 +1443,8 @@ class OvercookedGridworld(object):
             [0] * self.num_players,
             [0] * self.num_players,
         )
+        
+        team_sparse_reward, team_shaped_reward = 0
 
         for player_idx, (player, action) in enumerate(
             zip(new_state.players, joint_action)
@@ -1492,6 +1495,12 @@ class OvercookedGridworld(object):
                 # Onion pickup from dispenser
                 obj = ObjectState("onion", pos)
                 player.set_object(obj)
+                
+                # Add team reward for picking up onion
+                
+                team_shaped_reward += self.reward_shaping_params[
+                        "ONION_PICKUP_REWARD"
+                    ]
 
             elif terrain_type == "T" and player.held_object is None:
                 # Tomato pickup from dispenser
@@ -1507,6 +1516,7 @@ class OvercookedGridworld(object):
                     shaped_reward[player_idx] += self.reward_shaping_params[
                         "DISH_PICKUP_REWARD"
                     ]
+                    
 
                 # Perform dish pickup from dispenser
                 obj = ObjectState("dish", pos)
@@ -1576,6 +1586,9 @@ class OvercookedGridworld(object):
                     # Log soup delivery
                     events_infos["soup_delivery"][player_idx] = True
 
+        sparse_reward = [x + team_sparse_reward for x in sparse_reward]
+        shaped_reward = [x + team_shaped_reward for x in shaped_reward]
+        
         return sparse_reward, shaped_reward
 
     def get_recipe_value(
