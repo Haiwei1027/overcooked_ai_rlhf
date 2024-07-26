@@ -17,6 +17,8 @@ RUN if [ "$BUILD_ENV" = "production" ] ; then pip install eventlet ; fi
 #RUN git clone --recursive https://github.com/HumanCompatibleAI/overcooked_ai.git --branch $OVERCOOKED_BRANCH --single-branch /overcooked_ai
 RUN git clone --recursive https://github.com/Haiwei1027/overcooked_ai_rlhf.git --branch $OVERCOOKED_BRANCH --single-branch /overcooked_ai
 
+RUN cd /overcooked_ai && git pull origin master
+
 # Dummy data_dir so things don't break
 RUN echo "import os; DATA_DIR=os.path.abspath('.')" >> /overcooked_ai/src/human_aware_rl/data_dir.py
 

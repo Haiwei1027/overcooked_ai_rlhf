@@ -410,12 +410,13 @@ class OvercookedGame(Game):
 
     def __init__(
         self,
-        layouts=["cramped_room"],
+        layouts=["forced_coordination_trio"],
         mdp_params={},
-        num_players=2,
+        num_players=3,
         gameTime=30,
-        playerZero="human",
-        playerOne="human",
+        playerZero="AI",
+        playerOne="AI",
+        playerTwo="AI",
         showPotential=False,
         randomized=False,
         ticks_per_ai_action=1,
@@ -464,6 +465,14 @@ class OvercookedGame(Game):
                 playerOne, idx=1
             )
             self.npc_state_queues[player_one_id] = LifoQueue()
+        
+        player_two_id = playerTwo + "_2"
+        self.add_player(player_two_id, idx=2, buff_size=1, is_human=False)
+        self.npc_policies[player_two_id] = self.get_policy(
+            playerTwo, idx=2
+        )
+        self.npc_state_queues[player_two_id] = LifoQueue()
+        
         # Always kill ray after loading agent, otherwise, ray will crash once process exits
         # Only kill ray after loading both agents to avoid having to restart ray during loading
         if ray.is_initialized():
