@@ -142,6 +142,7 @@ class OvercookedMultiAgent(MultiAgentEnv):
             "reward_shaping_horizon": 0,
             "bc_schedule": self_play_bc_schedule,
             "use_phi": True,
+            "num_agent":2,
         },
     }
 
@@ -152,6 +153,7 @@ class OvercookedMultiAgent(MultiAgentEnv):
         reward_shaping_horizon=0,
         bc_schedule=None,
         use_phi=True,
+        num_agent=2,
     ):
         """
         base_env: OvercookedEnv
@@ -177,6 +179,7 @@ class OvercookedMultiAgent(MultiAgentEnv):
         self.reward_shaping_factor = reward_shaping_factor
         self.reward_shaping_horizon = reward_shaping_horizon
         self.use_phi = use_phi
+        self.num_agent = num_agent
         self.anneal_bc_factor(0)
         self._agent_ids = set(self.reset().keys())
         # fixes deprecation warnings
@@ -265,9 +268,8 @@ class OvercookedMultiAgent(MultiAgentEnv):
         raise ValueError("Unsupported agent type {0}".format(agent_id))
 
     def _get_obs(self, state):
-        ob_p0 = self._get_featurize_fn(self.curr_agents[0])(state)[0]
-        ob_p1 = self._get_featurize_fn(self.curr_agents[1])(state)[1]
-        return ob_p0.astype(np.float32), ob_p1.astype(np.float32)
+        obs = {self.curr_agents[n]: self._get_featurize_fn(self.curr_agents[n])(state)[n].astype(np.float32) for n in range(len(self.curr_agents))}
+        return obs
 
     def _populate_agents(self):
         # Always include at least one ppo agent (i.e. bc_sp not supported for simplicity)
@@ -275,14 +277,16 @@ class OvercookedMultiAgent(MultiAgentEnv):
 
         # Coin flip to determine whether other agent should be ppo or bc
         other_agent = "bc" if np.random.uniform() < self.bc_factor else "ppo"
-        agents.append(other_agent)
+        assert (self.num_agent >= 1)
+        for i in range(self.num_agent - 1):
+            agents.append(other_agent)
 
         # Randomize starting indices
         np.random.shuffle(agents)
 
         # Ensure agent names are unique
-        agents[0] = agents[0] + "_0"
-        agents[1] = agents[1] + "_1"
+        for i in range(self.num_agent):
+            agents[i] = agents[i] + "_{}".format(i)
 
         # logically the action_space and the observation_space should be set along with the generated agents
         # the agents are also randomized in each iteration if bc agents are allowed, which requires reestablishing the action & observation space
@@ -310,8 +314,7 @@ class OvercookedMultiAgent(MultiAgentEnv):
             observation: formatted to be standard input for self.agent_idx's policy
         """
         action = [
-            action_dict[self.curr_agents[0]],
-            action_dict[self.curr_agents[1]],
+            action_dict[self.curr_agents[n]] for n in range(len(self.curr_agents))
         ]
 
         assert all(
@@ -333,25 +336,17 @@ class OvercookedMultiAgent(MultiAgentEnv):
             )
             dense_reward = info["shaped_r_by_agent"]
 
-        ob_p0, ob_p1 = self._get_obs(next_state)
+        obs = self._get_obs(next_state)
 
-        shaped_reward_p0 = (
-            sparse_reward + self.reward_shaping_factor * dense_reward[0]
-        )
-        shaped_reward_p1 = (
-            sparse_reward + self.reward_shaping_factor * dense_reward[1]
-        )
-
-        obs = {self.curr_agents[0]: ob_p0, self.curr_agents[1]: ob_p1}
         rewards = {
-            self.curr_agents[0]: shaped_reward_p0,
-            self.curr_agents[1]: shaped_reward_p1,
+            self.curr_agents[n]: sparse_reward + self.reward_shaping_factor * dense_reward[n]
+            for n in range(len(self.curr_agents))
         }
         dones = {
-            self.curr_agents[0]: done,
-            self.curr_agents[1]: done,
-            "__all__": done,
+            self.curr_agents[n]: done
+            for n in range(len(self.curr_agents))
         }
+        dones["__all__"] = done
         infos = {self.curr_agents[0]: info, self.curr_agents[1]: info}
         return obs, rewards, dones, infos
 
@@ -366,8 +361,8 @@ class OvercookedMultiAgent(MultiAgentEnv):
         """
         self.base_env.reset(regen_mdp)
         self.curr_agents = self._populate_agents()
-        ob_p0, ob_p1 = self._get_obs(self.base_env.state)
-        return {self.curr_agents[0]: ob_p0, self.curr_agents[1]: ob_p1}
+        obs = self._get_obs(self.base_env.state)
+        return obs
 
     def anneal_reward_shaping_factor(self, timesteps):
         """

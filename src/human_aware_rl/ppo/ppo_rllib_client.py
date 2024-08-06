@@ -227,6 +227,7 @@ def my_config():
         "DISH_DISP_DISTANCE_REW": 0,
         "POT_DISTANCE_REW": 0,
         "SOUP_DISTANCE_REW": 0,
+        "ONION_PICKUP_REWARD": 3,
     }
     # whether to start cooking automatically when pot has 3 items in it
     old_dynamics = False

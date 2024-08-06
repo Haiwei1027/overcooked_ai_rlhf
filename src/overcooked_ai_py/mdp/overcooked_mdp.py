@@ -1022,7 +1022,10 @@ BASE_REW_SHAPING_PARAMS = {
     "DISH_DISP_DISTANCE_REW": 0,
     "POT_DISTANCE_REW": 0,
     "SOUP_DISTANCE_REW": 0,
-    "ONION_PICKUP_REWARD": 3,
+}
+
+BASE_TEAM_REW_SHAPING_PARAMS = {
+    "ONION_PICKUP_REW": 3,
 }
 
 EVENT_TYPES = [
@@ -1094,6 +1097,7 @@ class OvercookedGridworld(object):
         start_player_positions,
         start_bonus_orders=[],
         rew_shaping_params=None,
+        team_shaping_params=None,
         layout_name="unnamed_layout",
         start_all_orders=[],
         num_items_for_soup=3,
@@ -1108,6 +1112,7 @@ class OvercookedGridworld(object):
         start_player_positions: tuple of positions for both players' starting positions
         start_bonus_orders: List of recipes dicts that are worth a bonus
         rew_shaping_params: reward given for completion of specific subgoals
+        team_shaping_params: reward given to the whole team for when one agent completes a specific subgoal
         all_orders: List of all available order dicts the players can make, defaults to all possible recipes if empy list provided
         num_items_for_soup: Maximum number of ingredients that can be placed in a soup
         order_bonus: Multiplicative factor for serving a bonus recipe
@@ -1138,6 +1143,11 @@ class OvercookedGridworld(object):
             BASE_REW_SHAPING_PARAMS
             if rew_shaping_params is None
             else rew_shaping_params
+        )
+        self.team_reward_shaping_params = (
+            BASE_TEAM_REW_SHAPING_PARAMS
+            if team_shaping_params is None
+            else team_shaping_params
         )
         self.layout_name = layout_name
         self.order_bonus = order_bonus
@@ -1252,6 +1262,7 @@ class OvercookedGridworld(object):
             start_player_positions=self.start_player_positions,
             start_bonus_orders=self.start_bonus_orders,
             rew_shaping_params=copy.deepcopy(self.reward_shaping_params),
+            team_shaping_params=copy.deepcopy(self.team_reward_shaping_params),
             layout_name=self.layout_name,
             start_all_orders=self.start_all_orders,
         )
@@ -1264,6 +1275,7 @@ class OvercookedGridworld(object):
             "start_player_positions": self.start_player_positions,
             "start_bonus_orders": self.start_bonus_orders,
             "rew_shaping_params": copy.deepcopy(self.reward_shaping_params),
+            "team_shaping_params": copy.deepcopy(self.team_reward_shaping_params),
             "start_all_orders": self.start_all_orders,
         }
 
@@ -1444,7 +1456,7 @@ class OvercookedGridworld(object):
             [0] * self.num_players,
         )
         
-        team_sparse_reward, team_shaped_reward = 0
+        team_sparse_reward, team_shaped_reward = 0,0
 
         for player_idx, (player, action) in enumerate(
             zip(new_state.players, joint_action)
@@ -1498,9 +1510,9 @@ class OvercookedGridworld(object):
                 
                 # Add team reward for picking up onion
                 
-                team_shaped_reward += self.reward_shaping_params[
-                        "ONION_PICKUP_REWARD"
-                    ]
+                #team_sparse_reward += self.team_reward_shaping_params[
+                #        "ONION_PICKUP_REWARD"
+                #    ]
 
             elif terrain_type == "T" and player.held_object is None:
                 # Tomato pickup from dispenser
@@ -2396,12 +2408,12 @@ class OvercookedGridworld(object):
         return np.array(list(self.shape) + [26])
 
     def lossless_state_encoding(
-        self, overcooked_state, horizon=400, debug=False
+        self, overcooked_state, horizon=800, debug=False
     ):
         """Featurizes a OvercookedState object into a stack of boolean masks that are easily readable by a CNN"""
-        assert (
-            self.num_players == 2
-        ), "Functionality has to be added to support encondings for > 2 players"
+        #assert (
+        #    self.num_players == 2
+        #), "Functionality has to be added to support encondings for > 2 players"
         assert type(debug) is bool
         base_map_features = [
             "pot_loc",
@@ -2432,16 +2444,15 @@ class OvercookedGridworld(object):
 
         def process_for_player(primary_agent_idx):
             # Ensure that primary_agent_idx layers are ordered before other_agent_idx layers
-            other_agent_idx = 1 - primary_agent_idx
+            player_indicies = [primary_agent_idx] + [n for n in range(len(overcooked_state.players)) if n != primary_agent_idx]
             ordered_player_features = [
-                "player_{}_loc".format(primary_agent_idx),
-                "player_{}_loc".format(other_agent_idx),
+                "player_{}_loc".format(idx) for idx in player_indicies
             ] + [
                 "player_{}_orientation_{}".format(
                     i, Direction.DIRECTION_TO_INDEX[d]
                 )
                 for i, d in itertools.product(
-                    [primary_agent_idx, other_agent_idx],
+                    player_indicies,
                     Direction.ALL_DIRECTIONS,
                 )
             ]

@@ -565,7 +565,7 @@ class JointMotionPlanner(object):
             self.mdp.get_valid_player_positions_and_orientations()
         )
         possible_joint_goal_states = list(
-            itertools.product(valid_player_states, repeat=2)
+            itertools.product(valid_player_states, repeat=len(valid_joint_start_states))
         )
         valid_joint_goal_states = list(
             filter(self.is_valid_joint_motion_goal, possible_joint_goal_states)
@@ -675,6 +675,9 @@ class JointMotionPlanner(object):
         Get individual action plans for each agent from the MotionPlanner to get each agent
         independently to their goal state. NOTE: these plans might conflict
         """
+        if info:
+            print("plan joint start:",joint_start_state)
+            print("plan joint goal:",joint_goal_state)
         single_agent_motion_plans = [
             self.motion_planner.get_plan(start, goal)
             for start, goal in zip(joint_start_state, joint_goal_state)
@@ -685,7 +688,7 @@ class JointMotionPlanner(object):
             pos_and_or_paths.append(pos_and_or_path)
         plan_lengths = tuple(len(p) for p in action_plans)
         assert all(
-            [plan_lengths[i] == len(pos_and_or_paths[i]) for i in range(2)]
+            [plan_lengths[i] == len(pos_and_or_paths[i]) for i in range(len(plan_lengths))]
         )
         return action_plans, pos_and_or_paths, plan_lengths
 
@@ -700,11 +703,8 @@ class JointMotionPlanner(object):
         min_length = min(plan_lengths)
         prev_positions = tuple(s[0] for s in joint_start_state)
         for t in range(min_length):
-            curr_pos_or0, curr_pos_or1 = (
-                pos_and_or_paths[0][t],
-                pos_and_or_paths[1][t],
-            )
-            curr_positions = (curr_pos_or0[0], curr_pos_or1[0])
+            print("path:", pos_and_or_paths)
+            curr_positions = (pos_and_or_paths[n][t] for n in range(len(prev_positions)))
             if self.mdp.is_transition_collision(
                 prev_positions, curr_positions
             ):
@@ -992,7 +992,7 @@ class JointMotionPlanner(object):
             joint_start_state, all_orders=self.mdp.start_all_orders
         )
         env = OvercookedEnv.from_mdp(
-            self.mdp, horizon=200, info_level=int(self.debug)
+            self.mdp, horizon=800, info_level=int(self.debug)
         )  # Plans should be shorter than 200 timesteps, or something is likely wrong
         successor_state, is_done = env.execute_plan(
             dummy_state, joint_action_plan
@@ -1049,9 +1049,9 @@ class JointMotionPlanner(object):
         """
         successor_joint_positions = {}
         joint_motion_actions = itertools.product(
-            Action.MOTION_ACTIONS, Action.MOTION_ACTIONS
-        )
-
+                Action.MOTION_ACTIONS, repeat=len(starting_positions)
+            )
+        
         # Under assumption that orientation doesn't matter
         dummy_orientation = Direction.NORTH
         dummy_player_states = [
