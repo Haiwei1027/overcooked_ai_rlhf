@@ -1456,7 +1456,7 @@ class OvercookedGridworld(object):
             [0] * self.num_players,
         )
         
-        team_sparse_reward, team_shaped_reward = 0,0
+        team_sparse_reward, team_shaped_reward = (0,0)
 
         for player_idx, (player, action) in enumerate(
             zip(new_state.players, joint_action)
