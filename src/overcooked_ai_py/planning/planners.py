@@ -565,7 +565,7 @@ class JointMotionPlanner(object):
             self.mdp.get_valid_player_positions_and_orientations()
         )
         possible_joint_goal_states = list(
-            itertools.product(valid_player_states, repeat=len(valid_joint_start_states))
+            itertools.product(valid_player_states, repeat=len(valid_player_states[0]))
         )
         valid_joint_goal_states = list(
             filter(self.is_valid_joint_motion_goal, possible_joint_goal_states)
@@ -675,7 +675,7 @@ class JointMotionPlanner(object):
         Get individual action plans for each agent from the MotionPlanner to get each agent
         independently to their goal state. NOTE: these plans might conflict
         """
-        if info:
+        if self.debug:
             print("plan joint start:",joint_start_state)
             print("plan joint goal:",joint_goal_state)
         single_agent_motion_plans = [
@@ -701,10 +701,9 @@ class JointMotionPlanner(object):
     ):
         """Check if the sequence of pos_and_or_paths for the two agents conflict"""
         min_length = min(plan_lengths)
-        prev_positions = tuple(s[0] for s in joint_start_state)
+        prev_positions = tuple([s[0] for s in joint_start_state])
         for t in range(min_length):
-            print("path:", pos_and_or_paths)
-            curr_positions = (pos_and_or_paths[n][t] for n in range(len(prev_positions)))
+            curr_positions = tuple([pos_and_or_paths[n][t] for n in range(len(prev_positions))])
             if self.mdp.is_transition_collision(
                 prev_positions, curr_positions
             ):
@@ -718,14 +717,12 @@ class JointMotionPlanner(object):
         """Returns the joint action plan and end joint state obtained by joining the individual action plans"""
         assert finishing_time > 0
         end_joint_state = (
-            pos_and_or_paths[0][finishing_time - 1],
-            pos_and_or_paths[1][finishing_time - 1],
+            pos_and_or_paths[n][finishing_time - 1] for n in range(len(pos_and_or_paths))
         )
         joint_action_plan = list(
             zip(
                 *[
-                    action_plans[0][:finishing_time],
-                    action_plans[1][:finishing_time],
+                    action_plans[n][:finishing_time] for n in range(len(action_plans))
                 ]
             )
         )
